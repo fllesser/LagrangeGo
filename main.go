@@ -48,10 +48,8 @@ func main() {
 	}
 
 	qqClient.PrivateMessageEvent.Subscribe(privateLog)
-	qqClient.GroupMessageEvent.Subscribe(groupLog)
-	qqClient.SelfGroupMessageEvent.Subscribe(groupLog)
-	qqClient.GroupMessageEvent.Subscribe(logic.Sgst)
-	qqClient.SelfGroupMessageEvent.Subscribe(logic.Sgst)
+	groupSub(qqClient, groupLog)
+	groupSub(qqClient, logic.Sgst)
 
 	err = qqClient.Login("", "qrcode.png")
 	if err != nil {
@@ -77,7 +75,7 @@ func main() {
 		logger.Infoln("sig saved into sig.bin")
 	}()
 
-	// setup the main stop channel
+	// set up the main stop channel
 	mc := make(chan os.Signal, 2)
 	signal.Notify(mc, os.Interrupt, syscall.SIGTERM)
 	for {
@@ -107,6 +105,11 @@ func checkAlive(c *client.QQClient) {
 			}
 		}
 	}()
+}
+
+func groupSub(c *client.QQClient, handler func(client *client.QQClient, event *message.GroupMessage)) {
+	c.GroupMessageEvent.Subscribe(handler)
+	c.SelfGroupMessageEvent.Subscribe(handler)
 }
 
 func groupLog(c *client.QQClient, event *message.GroupMessage) {
