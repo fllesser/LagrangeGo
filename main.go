@@ -3,6 +3,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/LagrangeDev/LagrangeGo/logic"
+	"github.com/LagrangeDev/LagrangeGo/message"
 	"os"
 	"os/signal"
 	"path"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/LagrangeDev/LagrangeGo/client"
 	"github.com/LagrangeDev/LagrangeGo/client/auth"
-	"github.com/LagrangeDev/LagrangeGo/message"
 	"github.com/LagrangeDev/LagrangeGo/utils"
 	"github.com/mattn/go-colorable"
 	"github.com/sirupsen/logrus"
@@ -31,9 +32,9 @@ func main() {
 		KernelVersion: "10.0.22631",
 	}
 
-	qqclient := client.NewClient(0, appInfo, "https://sign.lagrangecore.org/api/sign")
-	qqclient.SetLogger(protocolLogger{})
-	qqclient.UseDevice(deviceInfo)
+	qqClient := client.NewClient(0, appInfo, "https://sign.lagrangecore.org/api/sign/25765")
+	qqClient.SetLogger(protocolLogger{})
+	qqClient.UseDevice(deviceInfo)
 	data, err := os.ReadFile("sig.bin")
 	if err != nil {
 		logrus.Warnln("read sig error:", err)
@@ -42,40 +43,30 @@ func main() {
 		if err != nil {
 			logrus.Warnln("load sig error:", err)
 		} else {
-			qqclient.UseSig(sig)
+			qqClient.UseSig(sig)
 		}
 	}
 
-	qqclient.GroupMessageEvent.Subscribe(func(client *client.QQClient, event *message.GroupMessage) {
-		if event.ToString() == "114514" {
-			img, _ := message.NewFileImage("testgroup.png")
-			_, err := client.SendGroupMessage(event.GroupUin, []message.IMessageElement{img})
-			if err != nil {
-				return
-			}
-		}
-	})
+	qqClient.PrivateMessageEvent.Subscribe(privateLog)
+	qqClient.GroupMessageEvent.Subscribe(groupLog)
+	qqClient.SelfGroupMessageEvent.Subscribe(groupLog)
+	qqClient.GroupMessageEvent.Subscribe(logic.Sgst)
+	qqClient.SelfGroupMessageEvent.Subscribe(logic.Sgst)
 
-	qqclient.PrivateMessageEvent.Subscribe(func(client *client.QQClient, event *message.PrivateMessage) {
-		img, _ := message.NewFileImage("testprivate.png")
-		_, err := client.SendPrivateMessage(event.Sender.Uin, []message.IMessageElement{img})
-		if err != nil {
-			return
-		}
-	})
-
-	err = qqclient.Login("", "qrcode.png")
+	err = qqClient.Login("", "qrcode.png")
 	if err != nil {
 		logrus.Errorln("login err:", err)
 		return
 	}
 
-	defer qqclient.Release()
+	checkAlive(qqClient)
+
+	defer qqClient.Release()
 
 	defer func() {
-		data, err = qqclient.Sig().Marshal()
+		data, err = qqClient.Sig().Marshal()
 		if err != nil {
-			logrus.Errorln("marshal sig.bin err:", err)
+			logger.Errorln("marshal sig.bin err:", err)
 			return
 		}
 		err = os.WriteFile("sig.bin", data, 0644)
@@ -83,7 +74,7 @@ func main() {
 			logrus.Errorln("write sig.bin err:", err)
 			return
 		}
-		logrus.Infoln("sig saved into sig.bin")
+		logger.Infoln("sig saved into sig.bin")
 	}()
 
 	// setup the main stop channel
@@ -95,6 +86,35 @@ func main() {
 			return
 		}
 	}
+}
+
+func checkAlive(c *client.QQClient) {
+	ticker := time.NewTicker(10 * time.Second)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.Errorf("定时器发生错误，%v", r)
+			}
+			ticker.Stop() // 意外退出时关闭定时器
+		}()
+		status, lastStatus := c.Online.Load(), false
+		statusContent := map[bool]string{true: "online", false: "offline"}
+		logger.Infof("Lgr[%v] %v", c.Uin, statusContent[status])
+		for range ticker.C {
+			lastStatus, status = status, c.Online.Load()
+			if lastStatus != status {
+				logger.Infof("Lgr[%v] %v", c.Uin, statusContent[status])
+			}
+		}
+	}()
+}
+
+func groupLog(c *client.QQClient, event *message.GroupMessage) {
+	logger.Infof(fromProtocol+"message.group[gid:%v,uid:%v,msg:%v]", event.GroupUin, event.Sender.Uin, event.ToString())
+}
+
+func privateLog(c *client.QQClient, event *message.PrivateMessage) {
+	logger.Infof(fromProtocol+"message.private[uid:%v,msg:%v]", event.Sender.Uin, event.ToString())
 }
 
 // protocolLogger from https://github.com/Mrs4s/go-cqhttp/blob/a5923f179b360331786a6509eb33481e775a7bd1/cmd/gocq/main.go#L501
@@ -119,16 +139,16 @@ func (p protocolLogger) Error(format string, arg ...any) {
 }
 
 func (p protocolLogger) Dump(data []byte, format string, arg ...any) {
-	message := fmt.Sprintf(format, arg...)
+	msg := fmt.Sprintf(format, arg...)
 	if _, err := os.Stat(dumpspath); err != nil {
 		err = os.MkdirAll(dumpspath, 0o755)
 		if err != nil {
-			logger.Errorf("出现错误 %v. 详细信息转储失败", message)
+			logger.Errorf("出现错误 %v. 详细信息转储失败", msg)
 			return
 		}
 	}
 	dumpFile := path.Join(dumpspath, fmt.Sprintf("%v.dump", time.Now().Unix()))
-	logger.Errorf("出现错误 %v. 详细信息已转储至文件 %v 请连同日志提交给开发者处理", message, dumpFile)
+	logger.Errorf("出现错误 %v. 详细信息已转储至文件 %v 请连同日志提交给开发者处理", msg, dumpFile)
 	_ = os.WriteFile(dumpFile, data, 0o644)
 }
 
@@ -145,7 +165,7 @@ const (
 var logger = logrus.New()
 
 func init() {
-	logger.SetLevel(logrus.TraceLevel)
+	logger.SetLevel(logrus.InfoLevel)
 	logger.SetFormatter(&ColoredFormatter{})
 	logger.SetOutput(colorable.NewColorableStdout())
 }
