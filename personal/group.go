@@ -52,7 +52,7 @@ func sgst(c *client.QQClient, event *message.GroupMessage) {
 }
 
 func forwardMarkdown(c *client.QQClient, event *message.GroupMessage) {
-	if event.Sender.Uin != c.Uin {
+	if event.Sender.Uin != c.Uin || event.ToString() != "/test" {
 		return
 	}
 	_, err := c.SendGroupMessage(event.GroupUin,
@@ -61,7 +61,7 @@ func forwardMarkdown(c *client.QQClient, event *message.GroupMessage) {
 			SenderId:   c.Uin,
 			SenderName: c.NickName(),
 			Time:       0,
-			Message:    []message.IMessageElement{&message.TextElement{Content: ""}},
+			Message:    []message.IMessageElement{&message.TextElement{Content: "# 标题 \\n## 简介很开心 \\n内容[🔗腾讯](https://www.qq.com)"}},
 		}}}})
 	if err != nil {
 		return

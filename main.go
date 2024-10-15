@@ -47,7 +47,6 @@ func main() {
 	}
 
 	personal.CheckAlive(qqClient)
-
 	defer qqClient.Release()
 
 	defer func() {

@@ -11,18 +11,16 @@ var (
 
 func init() {
 	Handlers.AddPrivate(privateLog)
-	Handlers.AddGroup(groupLog, true)
-	Handlers.AddGroup(sgst, true)
-	Handlers.AddGroup(replyEmoji, true)
-	//Handlers.AddGroup(forwardMarkdown, false)
+	Handlers.AddGroup(groupLog)
+	Handlers.AddGroup(sgst)
+	Handlers.AddGroup(replyEmoji)
+	Handlers.AddGroup(forwardMarkdown)
 }
 
 type (
 	CustomHandlers struct {
-		groupMessageHandlers       []Handler[*message.GroupMessage]
-		selfGroupMessageHandlers   []Handler[*message.GroupMessage]
-		privateMessageHandlers     []Handler[*message.PrivateMessage]
-		selfPrivateMessageHandlers []Handler[*message.PrivateMessage]
+		groupMessageHandlers   []Handler[*message.GroupMessage]
+		privateMessageHandlers []Handler[*message.PrivateMessage]
 	}
 
 	Handler[T any] func(c *client.QQClient, event T)
@@ -38,11 +36,7 @@ func (h *CustomHandlers) Sub(c *client.QQClient) {
 	}
 }
 
-func (h *CustomHandlers) AddGroup(handler Handler[*message.GroupMessage], isSelf bool) {
-	if isSelf {
-		h.selfGroupMessageHandlers = append(h.selfGroupMessageHandlers, handler)
-	}
-
+func (h *CustomHandlers) AddGroup(handler Handler[*message.GroupMessage]) {
 	h.groupMessageHandlers = append(h.groupMessageHandlers, handler)
 }
 
