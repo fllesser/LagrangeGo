@@ -50,3 +50,20 @@ func sgst(c *client.QQClient, event *message.GroupMessage) {
 		}
 	}
 }
+
+func forwardMarkdown(c *client.QQClient, event *message.GroupMessage) {
+	if event.Sender.Uin != c.Uin {
+		return
+	}
+	_, err := c.SendGroupMessage(event.GroupUin,
+		[]message.IMessageElement{&message.ForwardMessage{Nodes: []*message.ForwardNode{{
+			GroupId:    event.GroupUin,
+			SenderId:   c.Uin,
+			SenderName: c.NickName(),
+			Time:       0,
+			Message:    []message.IMessageElement{&message.TextElement{Content: ""}},
+		}}}})
+	if err != nil {
+		return
+	}
+}
